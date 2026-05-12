@@ -1,0 +1,32 @@
+# C build
+core/build/
+*.o
+*.so
+*.dylib
+*.dll
+*.a
+
+# Kotlin/Gradle
+kotlin/build/
+kotlin/.gradle/
+*.class
+*.jar
+
+# Python
+python/dist/
+python/*.egg-info/
+python/__pycache__/
+**/__pycache__/
+*.pyc
+python/.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
