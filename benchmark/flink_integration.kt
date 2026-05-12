@@ -12,7 +12,7 @@ package benchmark
 /*
 // Example Flink ProcessFunction using nanofilter:
 
-import io.nanofilter.NanoFilter
+import io.tinywindow.TinyWindow
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction
 import org.apache.flink.util.Collector
 import kotlin.time.Duration.Companion.minutes
@@ -24,7 +24,7 @@ class RateLimitFunction : KeyedProcessFunction<String, RequestEvent, ThrottleEve
     private lateinit var limiter: io.nanofilter.RateLimiter
 
     override fun open(params: org.apache.flink.configuration.Configuration) {
-        limiter = NanoFilter.rateLimiter(
+        limiter = TinyWindow.rateLimiter(
             expectedKeys = 1_000_000,
             windows = listOf(1.minutes, 1.hours),
             errorRate = 0.01

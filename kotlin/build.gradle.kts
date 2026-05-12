@@ -72,11 +72,11 @@ val compileJni by tasks.registering(Exec::class) {
 
     val cmakeBuildDir = layout.buildDirectory.dir("cmake-build").get().asFile.absolutePath
     // Static-link libnanofilter.a so the JNI lib is self-contained (no runtime dependency)
-    commandLine("cc", "-shared", "-fPIC", "-O2",
+    val osInclude = if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "darwin" else "linux"
+    commandLine("cc", "-shared", "-fPIC", "-O2", "-pthread",
         "-I", "${coreDir.asFile.absolutePath}/include",
         "-I", "$javaHome/include",
-        "-I", "$javaHome/include/darwin",
-        "-I", "$javaHome/include/linux",
+        "-I", "$javaHome/include/$osInclude",
         jniDir.file("nanofilter_jni.c").asFile.absolutePath,
         "$cmakeBuildDir/libnanofilter.a",
         "-lm",

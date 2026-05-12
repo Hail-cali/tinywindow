@@ -106,12 +106,10 @@ class FrequencyCapService {
         errorRate = 0.01
     )
 
-    @Synchronized
     fun record(userId: String, campaignId: String) {
         cap.record(userId, campaignId)
     }
 
-    @Synchronized
     fun isCapped(userId: String, campaignId: String): Boolean {
         val counts = cap.countAll(userId, campaignId)
         return (counts[1.hours] ?: 0) >= 3
@@ -136,7 +134,7 @@ class AdController(private val freqCap: FrequencyCapService) {
 ```
 
 - `@Service` singleton = native memory lifecycle managed by Spring
-- `@Synchronized` = C core is not thread-safe
+- Thread-safe: C core uses atomics + mutex internally, no external synchronization needed
 - `@PreDestroy` = free off-heap memory on shutdown
 
 See [docs/USAGE.md](docs/USAGE.md) for rate limiter, dedup, sharding, Python examples.

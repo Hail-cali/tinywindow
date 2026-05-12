@@ -45,6 +45,14 @@ add_executable(test_timing_cms test/test_timing_cms.c)
 target_link_libraries(test_timing_cms nanofilter_static Threads::Threads m)
 add_test(NAME test_timing_cms COMMAND test_timing_cms)
 
+add_executable(test_window test/test_window.c)
+target_link_libraries(test_window nanofilter_static Threads::Threads m)
+add_test(NAME test_window COMMAND test_window)
+
+add_executable(test_sliding_bf test/test_sliding_bf.c)
+target_link_libraries(test_sliding_bf nanofilter_static Threads::Threads m)
+add_test(NAME test_sliding_bf COMMAND test_sliding_bf)
+
 # Benchmark
 add_executable(bench_throughput test/bench_throughput.c)
 target_link_libraries(bench_throughput nanofilter_static Threads::Threads m)
