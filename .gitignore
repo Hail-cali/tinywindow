@@ -11,6 +11,7 @@ kotlin/build/
 kotlin/.gradle/
 *.class
 *.jar
+!kotlin/gradle/wrapper/gradle-wrapper.jar
 
 # Python
 python/dist/
