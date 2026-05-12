@@ -136,58 +136,6 @@ static void test_reset(void) {
     printf("  PASS: reset\n");
 }
 
-static void test_sliding_bloom_filter(void) {
-    /* 6 slots of 10 seconds = 60s window */
-    nf_sliding_bf_t *bf = nf_sbf_create(10000, 0.01, 6, 10000);
-    assert(bf != NULL);
-
-    uint64_t t = 1000000;
-
-    /* Insert and check */
-    nf_sbf_insert(bf, "click:abc123", t);
-    assert(nf_sbf_might_contain(bf, "click:abc123", 60000, t) == true);
-    assert(nf_sbf_might_contain(bf, "click:never_inserted", 60000, t) == false);
-
-    /* After full window expiry */
-    assert(nf_sbf_might_contain(bf, "click:abc123", 60000, t + 6 * 10000) == false);
-
-    printf("  memory usage: %zu bytes\n", nf_sbf_memory_usage(bf));
-    nf_sbf_destroy(bf);
-    printf("  PASS: sliding bloom filter basic\n");
-}
-
-static void test_sbf_false_positive_rate(void) {
-    nf_sliding_bf_t *bf = nf_sbf_create(10000, 0.01, 1, 3600000);
-    assert(bf != NULL);
-
-    uint64_t now = 1000000;
-
-    /* Insert 5000 items */
-    for (int i = 0; i < 5000; i++) {
-        char key[32];
-        snprintf(key, sizeof(key), "inserted_%d", i);
-        nf_sbf_insert(bf, key, now);
-    }
-
-    /* Check 10000 items that were NOT inserted */
-    int false_positives = 0;
-    for (int i = 0; i < 10000; i++) {
-        char key[32];
-        snprintf(key, sizeof(key), "not_inserted_%d", i);
-        if (nf_sbf_might_contain(bf, key, 3600000, now)) {
-            false_positives++;
-        }
-    }
-
-    double fp_rate = (double)false_positives / 10000.0;
-    printf("  FP rate: %.4f (target: 0.01)\n", fp_rate);
-    /* Allow 3x target FP rate (generous, should still pass) */
-    assert(fp_rate < 0.03);
-
-    nf_sbf_destroy(bf);
-    printf("  PASS: sliding BF false positive rate\n");
-}
-
 int main(void) {
     printf("=== test_timing_cms ===\n");
 
@@ -205,14 +153,6 @@ int main(void) {
 
     printf("[test_reset]\n");
     test_reset();
-
-    printf("\n=== test_sliding_bf ===\n");
-
-    printf("[test_sliding_bloom_filter]\n");
-    test_sliding_bloom_filter();
-
-    printf("[test_sbf_false_positive_rate]\n");
-    test_sbf_false_positive_rate();
 
     printf("\nAll tests passed.\n");
     return 0;

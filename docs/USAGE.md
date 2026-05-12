@@ -6,7 +6,7 @@
 
 ```kotlin
 dependencies {
-    implementation("io.nanofilter:nanofilter:0.1.0")
+    implementation("io.tinywindow:tinywindow:0.1.0")
 }
 ```
 
@@ -31,12 +31,12 @@ sudo make install
 ### Frequency Capping (Kotlin)
 
 ```kotlin
-import io.nanofilter.NanoFilter
+import io.tinywindow.TinyWindow
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.days
 
 // Create a frequency cap with multiple windows
-val cap = NanoFilter.frequencyCap(
+val cap = TinyWindow.frequencyCap(
     expectedPairs = 5_000_000,       // expected user x campaign pairs
     windows = listOf(1.hours, 24.hours, 7.days),
     errorRate = 0.01                  // 1% error tolerance
@@ -61,11 +61,11 @@ cap.close()
 ### Rate Limiting (Kotlin)
 
 ```kotlin
-import io.nanofilter.NanoFilter
+import io.tinywindow.TinyWindow
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.hours
 
-NanoFilter.rateLimiter(
+TinyWindow.rateLimiter(
     expectedKeys = 1_000_000,
     windows = listOf(1.minutes, 1.hours),
     errorRate = 0.01
@@ -80,10 +80,10 @@ NanoFilter.rateLimiter(
 ### Deduplication (Kotlin)
 
 ```kotlin
-import io.nanofilter.NanoFilter
+import io.tinywindow.TinyWindow
 import kotlin.time.Duration.Companion.hours
 
-NanoFilter.dedup(
+TinyWindow.dedup(
     expectedItems = 10_000_000,
     ttl = 24.hours,
     errorRate = 0.001
@@ -99,7 +99,7 @@ NanoFilter.dedup(
 ### Python
 
 ```python
-from nanofilter import TimingCMS
+from tinywindow import TimingCMS
 
 with TimingCMS(depth=5, width=50000, num_slots=12, slot_duration_ms=300000) as cms:
     cms.record("user:abc")

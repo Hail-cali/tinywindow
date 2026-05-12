@@ -1,6 +1,6 @@
 package benchmark
 
-import io.nanofilter.NanoFilter
+import io.tinywindow.TinyWindow
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.days
 import kotlin.time.measureTime
@@ -19,7 +19,7 @@ fun main() {
 
     // ── nanofilter ──
     println("=== nanofilter FrequencyCap ===")
-    NanoFilter.frequencyCap(
+    TinyWindow.frequencyCap(
         expectedPairs = 1_000_000,
         windows = listOf(1.hours, 24.hours, 7.days),
         errorRate = 0.01
