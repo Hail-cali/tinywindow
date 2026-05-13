@@ -172,7 +172,7 @@ See [docs/BENCHMARK.md](docs/BENCHMARK.md) for full results and methodology.
 ```
 tinywindow/
 ├── core/               C core library
-│   ├── include/        public API (nanofilter.h)
+│   ├── include/        public API (tinywindow.h)
 │   ├── src/            hash, timing_cms, sliding_bf, window, memory
 │   └── test/           unit tests + throughput benchmark
 ├── kotlin/             Kotlin/JVM bindings (JNI)

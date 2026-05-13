@@ -13,7 +13,7 @@ dependencies {
 ### Python
 
 ```bash
-pip install nanofilter
+pip install tinywindow
 ```
 
 ### C

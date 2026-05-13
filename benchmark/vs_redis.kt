@@ -6,7 +6,7 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.measureTime
 
 /**
- * Benchmark: nanofilter vs Redis for frequency capping.
+ * Benchmark: tinywindow vs Redis for frequency capping.
  *
  * Prerequisites:
  * - Redis running on localhost:6379
@@ -17,8 +17,8 @@ import kotlin.time.measureTime
 fun main() {
     val iterations = 100_000
 
-    // ── nanofilter ──
-    println("=== nanofilter FrequencyCap ===")
+    // ── tinywindow ──
+    println("=== tinywindow FrequencyCap ===")
     TinyWindow.frequencyCap(
         expectedPairs = 1_000_000,
         windows = listOf(1.hours, 24.hours, 7.days),
@@ -46,7 +46,7 @@ fun main() {
     println("\n=== Redis (placeholder — uncomment with Jedis dependency) ===")
     println("// Typical Redis GET latency: 500-2000us per call")
     println("// For 3 windows: 1500-6000us per countAll equivalent")
-    println("// nanofilter target: <20us for countAll")
+    println("// tinywindow target: <20us for countAll")
 
     /*
     // Uncomment with Jedis dependency:

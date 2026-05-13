@@ -1,4 +1,4 @@
-"""Basic tests for Python bindings (requires libnanofilter built)."""
+"""Basic tests for Python bindings (requires libtinywindow built)."""
 
 import pytest
 from tinywindow import TimingCMS, SlidingBloomFilter
