@@ -1,0 +1,13 @@
+core/build/
+kotlin/build/
+kotlin/.gradle/
+python/.venv/
+python/__pycache__/
+python/dist/
+python/*.egg-info/
+.git/
+.github/
+.idea/
+.vscode/
+*.md
+LICENSE

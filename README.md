@@ -6,95 +6,131 @@
 **"How many times did user ABC see campaign XYZ in the last 1h / 24h / 7d?"**
 Answer this in **<0.1us**, in-process, with zero GC overhead.
 
-## Why
+## Requirements
 
-Ad servers check per-user frequency on every bid request. The standard approach — Redis `INCR` + `EXPIRE` — adds **0.5-2ms** network latency per lookup. Multiply by 100 candidate ads at 500K QPS, and Redis becomes the bottleneck.
+| Component | Version |
+|-----------|---------|
+| Java / Kotlin | JDK 17+ |
+| Gradle | 8.x+ (wrapper included) |
+| CMake | 3.20+ (for building from source) |
+| Python | 3.10+ (optional, for Python bindings) |
 
-tinywindow eliminates the network hop entirely:
+### Supported Platforms
 
+| OS | Architecture | Status |
+|----|-------------|--------|
+| Linux | amd64 (x86_64) | Supported |
+| Linux | aarch64 (ARM64) | Supported |
+| macOS | aarch64 (Apple Silicon) | Supported |
+| macOS | amd64 (Intel) | Supported |
+| Windows | amd64 | Planned |
+
+The JAR includes pre-built native libraries for all supported platforms.
+The correct library is detected at runtime via `os.name` + `os.arch`.
+
+## Installation
+
+### Gradle (Kotlin DSL)
+
+```kotlin
+dependencies {
+    implementation("io.tinywindow:tinywindow:0.1.0")
+}
 ```
-Redis GET per ad:  500-2000us  (network round-trip)
-tinywindow:           ~100ns  (in-process, off-heap)
+
+### Gradle (Groovy)
+
+```groovy
+dependencies {
+    implementation 'io.tinywindow:tinywindow:0.1.0'
+}
 ```
 
 ## Quick Start
 
+### 1. Frequency Capping
+
+Count per-user impressions across multiple time windows.
+
 ```kotlin
+import io.tinywindow.TinyWindow
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.days
+
 val cap = TinyWindow.frequencyCap(
-    expectedPairs = 5_000_000,
+    expectedPairs = 5_000_000,    // expected unique user-campaign pairs
     windows = listOf(1.hours, 24.hours, 7.days),
-    errorRate = 0.01
+    errorRate = 0.01              // 1% overcount tolerance
 )
 
 // Record an impression
 cap.record("user:abc", "campaign:xyz")
+
+// Query a single window
+val hourlyCount = cap.count(1.hours, "user:abc", "campaign:xyz")
 
 // Query all windows at once
 val counts = cap.countAll("user:abc", "campaign:xyz")
 // -> {1h: 2, 24h: 5, 7d: 12}
 
 if (counts[1.hours]!! >= 3) skip()
+
+// Free native memory when done
+cap.close()
 ```
 
-## How It Works
+### 2. Rate Limiting
 
-Standard Count-Min Sketch is a 2D counter array (`d` rows x `w` columns). tinywindow extends it into 3D by adding **circular time slots**:
+Count events per key within time windows.
 
+```kotlin
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.hours
+
+val limiter = TinyWindow.rateLimiter(
+    expectedKeys = 1_000_000,
+    windows = listOf(1.minutes, 1.hours)
+)
+
+limiter.record("ip:192.168.1.100")
+
+if (limiter.isLimited("ip:192.168.1.100", 1.minutes, limit = 100)) {
+    return HttpStatus.TOO_MANY_REQUESTS
+}
+
+limiter.close()
 ```
-Standard CMS:     d x w           (2D)
-Timing CMS:       d x w x t      (3D, with time slots)
 
-record("key")    -> increment counters in the active slot
-count("key", 1h) -> sum counters across slots covering 1h, take min across rows
-time passes      -> zero-fill expired slots, rotate circular pointer
+### 3. Click Deduplication
+
+Detect duplicates within a time-to-live window.
+
+```kotlin
+val dedup = TinyWindow.dedup(
+    expectedItems = 10_000_000,
+    ttl = 1.hours,
+    errorRate = 0.001     // 0.1% false positive tolerance
+)
+
+if (dedup.isDuplicate("click:abc123")) {
+    // already seen within TTL — skip
+} else {
+    // first occurrence — process
+}
+
+dedup.close()
 ```
 
-Multiple windows (1h / 24h / 7d) run in parallel, each with its own slot granularity:
-- **1h window**: 5-min slots x 12
-- **24h window**: 1-hr slots x 24
-- **7d window**: 6-hr slots x 28
+All three APIs implement `AutoCloseable` and work with Kotlin `use { }`:
 
-See [docs/ALGORITHM.md](docs/ALGORITHM.md) for the full design.
-
-## Use Cases
-
-| Use Case | API | Description |
-|----------|-----|-------------|
-| Ad Frequency Capping | `FrequencyCap` | Multi-window impression counting per user x campaign |
-| Stream Rate Limiting | `RateLimiter` | IP/user rate limiting inside Flink/Kafka pipelines |
-| Click Deduplication | `Dedup` | Time-bounded duplicate detection via Sliding Bloom Filter |
-
-## Comparison
-
-| Solution | Time Decay | Freq Count | Multi-Window | JVM Native | Off-Heap |
-|----------|:---------:|:----------:|:------------:|:----------:|:--------:|
-| Redis INCR+EXPIRE | O | O | O (multi-key) | X (network) | - |
-| Apache DataSketches CMS | X | O | X | O | X |
-| Guava BloomFilter | X | X | X | O | X |
-| **tinywindow** | **O** | **O** | **O** | **O (C+JNI)** | **O** |
-
-## Architecture
-
-```
-User Code (Kotlin / Java / Python)
-        |
-        | JNI / cffi
-        v
-  tinywindow C core
-  +-- TimingCMS    : time-slotted Count-Min Sketch (frequency counting)
-  +-- SlidingBF    : time-slotted Bloom Filter (dedup / membership)
-  +-- WindowManager: circular slot rotation and expiry
-  +-- Memory       : cache-line aligned, single malloc, off-heap
+```kotlin
+TinyWindow.frequencyCap(...).use { cap ->
+    cap.record("user:abc", "campaign:xyz")
+    cap.countAll("user:abc", "campaign:xyz")
+}
 ```
 
 ## Spring Boot Integration
-
-```kotlin
-// build.gradle.kts
-dependencies {
-    implementation("io.tinywindow:tinywindow:0.1.0")
-}
-```
 
 ```kotlin
 @Service
@@ -137,9 +173,79 @@ class AdController(private val freqCap: FrequencyCapService) {
 - Thread-safe: C core uses atomics + mutex internally, no external synchronization needed
 - `@PreDestroy` = free off-heap memory on shutdown
 
+### Kubernetes Deployment
+
+When deploying on K8s, set `-Djava.library.path` to load the native library directly
+from the container image instead of extracting to `/tmp`:
+
+```dockerfile
+ENTRYPOINT ["java", "-Djava.library.path=/app/lib", "-jar", "/app/app.jar"]
+```
+
+This makes `readOnlyRootFilesystem: true` work without extra volume mounts.
+See [examples/k8s-deployment](examples/k8s-deployment) for a complete Dockerfile and Pod YAML.
+
+**Memory sizing**: tinywindow allocates off-heap memory via `malloc` (not JVM heap).
+Set K8s memory limits to account for both JVM heap and native memory.
+5M pairs x 3 windows ≈ ~17MB off-heap.
+
 See [docs/USAGE.md](docs/USAGE.md) for rate limiter, dedup, sharding, Python examples.
 
-## Build
+## Why
+
+Ad servers check per-user frequency on every bid request. The standard approach — Redis `INCR` + `EXPIRE` — adds **0.5-2ms** network latency per lookup. Multiply by 100 candidate ads at 500K QPS, and Redis becomes the bottleneck.
+
+tinywindow eliminates the network hop entirely:
+
+```
+Redis GET per ad:  500-2000us  (network round-trip)
+tinywindow:           ~100ns  (in-process, off-heap)
+```
+
+## How It Works
+
+Standard Count-Min Sketch is a 2D counter array (`d` rows x `w` columns). tinywindow extends it into 3D by adding **circular time slots**:
+
+```
+Standard CMS:     d x w           (2D)
+Timing CMS:       d x w x t      (3D, with time slots)
+
+record("key")    -> increment counters in the active slot
+count("key", 1h) -> sum counters across slots covering 1h, take min across rows
+time passes      -> zero-fill expired slots, rotate circular pointer
+```
+
+Multiple windows (1h / 24h / 7d) run in parallel, each with its own slot granularity:
+- **1h window**: 5-min slots x 12
+- **24h window**: 1-hr slots x 24
+- **7d window**: 6-hr slots x 28
+
+See [docs/ALGORITHM.md](docs/ALGORITHM.md) for the full design.
+
+## Comparison
+
+| Solution | Time Decay | Freq Count | Multi-Window | JVM Native | Off-Heap |
+|----------|:---------:|:----------:|:------------:|:----------:|:--------:|
+| Redis INCR+EXPIRE | O | O | O (multi-key) | X (network) | - |
+| Apache DataSketches CMS | X | O | X | O | X |
+| Guava BloomFilter | X | X | X | O | X |
+| **tinywindow** | **O** | **O** | **O** | **O (C+JNI)** | **O** |
+
+## Architecture
+
+```
+User Code (Kotlin / Java / Python)
+        |
+        | JNI / cffi
+        v
+  tinywindow C core
+  +-- TimingCMS    : time-slotted Count-Min Sketch (frequency counting)
+  +-- SlidingBF    : time-slotted Bloom Filter (dedup / membership)
+  +-- WindowManager: circular slot rotation and expiry
+  +-- Memory       : cache-line aligned, single malloc, off-heap
+```
+
+## Build from Source
 
 ```bash
 # C core
@@ -181,7 +287,7 @@ tinywindow/
 ├── python/             Python bindings (cffi)
 ├── benchmark/          vs Redis, vs DataSketches, Flink integration
 ├── docs/               ALGORITHM.md, BENCHMARK.md, USAGE.md
-└── examples/           Spring Boot ad server, Flink rate limiter
+└── examples/           Spring Boot ad server, Flink rate limiter, K8s deployment
 ```
 
 ## Roadmap
