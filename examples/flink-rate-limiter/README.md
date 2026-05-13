@@ -1,6 +1,6 @@
 # Flink Rate Limiter Example
 
-Demonstrates nanofilter as a rate limiter inside a Flink ProcessFunction.
+Demonstrates tinywindow as a rate limiter inside a Flink ProcessFunction.
 
 ## Setup (Phase 4)
 

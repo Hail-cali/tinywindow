@@ -5,18 +5,18 @@ import kotlin.time.Duration.Companion.hours
 import kotlin.time.measureTime
 
 /**
- * Benchmark: nanofilter vs Apache DataSketches CountMinSketch.
+ * Benchmark: tinywindow vs Apache DataSketches CountMinSketch.
  *
  * Key difference: DataSketches CMS has no time window support.
- * nanofilter provides built-in time decay with comparable throughput.
+ * tinywindow provides built-in time decay with comparable throughput.
  *
  * Prerequisites: Add org.apache.datasketches:datasketches-java dependency.
  */
 fun main() {
     val iterations = 500_000
 
-    // ── nanofilter (with time windows) ──
-    println("=== nanofilter Timing CMS ===")
+    // ── tinywindow (with time windows) ──
+    println("=== tinywindow Timing CMS ===")
     TinyWindow.frequencyCap(
         expectedPairs = 1_000_000,
         windows = listOf(1.hours),
@@ -55,7 +55,7 @@ fun main() {
     */
 
     println("\n=== Feature Comparison ===")
-    println("| Feature              | nanofilter | DataSketches CMS |")
+    println("| Feature              | tinywindow | DataSketches CMS |")
     println("|---------------------|------------|------------------|")
     println("| Time windows        | Built-in   | Not supported    |")
     println("| Multi-window query  | Yes        | No               |")

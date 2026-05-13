@@ -1,16 +1,16 @@
 package benchmark
 
 /**
- * Flink integration benchmark: measures GC impact of nanofilter vs Java alternatives.
+ * Flink integration benchmark: measures GC impact of tinywindow vs Java alternatives.
  *
- * This is a conceptual benchmark showing how nanofilter would be used
+ * This is a conceptual benchmark showing how tinywindow would be used
  * inside a Flink ProcessFunction with zero GC overhead.
  *
  * Prerequisites: Flink dependencies.
  */
 
 /*
-// Example Flink ProcessFunction using nanofilter:
+// Example Flink ProcessFunction using tinywindow:
 
 import io.tinywindow.TinyWindow
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction
@@ -21,7 +21,7 @@ import kotlin.time.Duration.Companion.hours
 class RateLimitFunction : KeyedProcessFunction<String, RequestEvent, ThrottleEvent>() {
 
     @Transient
-    private lateinit var limiter: io.nanofilter.RateLimiter
+    private lateinit var limiter: io.tinywindow.RateLimiter
 
     override fun open(params: org.apache.flink.configuration.Configuration) {
         limiter = TinyWindow.rateLimiter(
@@ -51,7 +51,7 @@ class RateLimitFunction : KeyedProcessFunction<String, RequestEvent, ThrottleEve
 fun main() {
     println("=== Flink Integration Benchmark (conceptual) ===")
     println()
-    println("Key advantage of nanofilter in Flink:")
+    println("Key advantage of tinywindow in Flink:")
     println("  - All memory is off-heap (C malloc), zero GC pressure")
     println("  - No serialization overhead for state")
     println("  - Sub-microsecond operations don't affect event time processing")
@@ -61,11 +61,11 @@ fun main() {
     println("  |-------------------|-----------|-----------|------------|")
     println("  | HashMap + Timer   | High      | ~100ns    | Exact, large|")
     println("  | DataSketches CMS  | Medium    | ~200ns    | ~100KB     |")
-    println("  | nanofilter        | None      | ~500ns*   | ~11MB      |")
+    println("  | tinywindow        | None      | ~500ns*   | ~11MB      |")
     println("  * includes JNI overhead")
     println()
     println("To run actual Flink benchmark:")
-    println("  1. Add Flink + nanofilter dependencies")
+    println("  1. Add Flink + tinywindow dependencies")
     println("  2. Enable GC logging: -Xlog:gc*:gc.log")
-    println("  3. Compare GC pause times with vs without nanofilter")
+    println("  3. Compare GC pause times with vs without tinywindow")
 }
