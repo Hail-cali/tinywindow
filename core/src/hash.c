@@ -1,4 +1,4 @@
-#include "nanofilter.h"
+#include "tinywindow.h"
 #include <string.h>
 
 /* ── MurmurHash3_x86_128 ───────────────────────────────────────── *
@@ -25,7 +25,7 @@ static inline uint32_t getblock32(const uint32_t *p, int i) {
     return val;
 }
 
-void nf_murmurhash3_x86_128(const void *key, size_t len,
+void tw_murmurhash3_x86_128(const void *key, size_t len,
                              uint32_t seed, void *out) {
     const uint8_t *data = (const uint8_t *)key;
     const int nblocks = (int)(len / 16);
@@ -117,10 +117,10 @@ void nf_murmurhash3_x86_128(const void *key, size_t len,
     result[3] = h4;
 }
 
-void nf_hash128(const char *key, uint32_t seed,
+void tw_hash128(const char *key, uint32_t seed,
                 uint64_t *h1_out, uint64_t *h2_out) {
     uint32_t out[4];
-    nf_murmurhash3_x86_128(key, strlen(key), seed, out);
+    tw_murmurhash3_x86_128(key, strlen(key), seed, out);
     *h1_out = ((uint64_t)out[1] << 32) | (uint64_t)out[0];
     *h2_out = ((uint64_t)out[3] << 32) | (uint64_t)out[2];
 }

@@ -1,17 +1,17 @@
-#include "nanofilter.h"
+#include "tinywindow.h"
 #include <stdlib.h>
 
-struct nf_window {
+struct tw_window {
     uint32_t num_slots;
     uint64_t slot_duration_ms;
     uint32_t active_slot;       /* index of the current active slot (circular) */
     uint64_t last_advance_ms;   /* timestamp of last advance */
 };
 
-nf_window_t *nf_window_create(uint32_t num_slots, uint64_t slot_duration_ms) {
+tw_window_t *tw_window_create(uint32_t num_slots, uint64_t slot_duration_ms) {
     if (num_slots == 0 || slot_duration_ms == 0) return NULL;
 
-    nf_window_t *win = (nf_window_t *)malloc(sizeof(nf_window_t));
+    tw_window_t *win = (tw_window_t *)malloc(sizeof(tw_window_t));
     if (!win) return NULL;
 
     win->num_slots = num_slots;
@@ -21,11 +21,11 @@ nf_window_t *nf_window_create(uint32_t num_slots, uint64_t slot_duration_ms) {
     return win;
 }
 
-void nf_window_destroy(nf_window_t *win) {
+void tw_window_destroy(tw_window_t *win) {
     free(win);
 }
 
-uint32_t nf_window_advance(nf_window_t *win, uint64_t now_ms) {
+uint32_t tw_window_advance(tw_window_t *win, uint64_t now_ms) {
     if (!win) return 0;
 
     if (win->last_advance_ms == 0) {
@@ -54,16 +54,16 @@ uint32_t nf_window_advance(nf_window_t *win, uint64_t now_ms) {
     return slots_elapsed;
 }
 
-uint32_t nf_window_active_slot(const nf_window_t *win) {
+uint32_t tw_window_active_slot(const tw_window_t *win) {
     if (!win) return 0;
     return win->active_slot;
 }
 
-size_t nf_window_sizeof(void) {
-    return sizeof(nf_window_t);
+size_t tw_window_sizeof(void) {
+    return sizeof(tw_window_t);
 }
 
-bool nf_window_needs_advance(const nf_window_t *win, uint64_t now_ms) {
+bool tw_window_needs_advance(const tw_window_t *win, uint64_t now_ms) {
     if (!win) return false;
     uint64_t last = win->last_advance_ms;
     if (last == 0) return true;           /* first call: needs initialization */
@@ -71,7 +71,7 @@ bool nf_window_needs_advance(const nf_window_t *win, uint64_t now_ms) {
     return (now_ms - last) >= win->slot_duration_ms;
 }
 
-uint32_t nf_window_slots_for(const nf_window_t *win, uint64_t window_ms) {
+uint32_t tw_window_slots_for(const tw_window_t *win, uint64_t window_ms) {
     if (!win) return 0;
     uint32_t slots = (uint32_t)((window_ms + win->slot_duration_ms - 1)
                                 / win->slot_duration_ms);

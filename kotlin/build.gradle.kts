@@ -32,7 +32,7 @@ val coreDir = rootProject.layout.projectDirectory.dir("../core")
 
 val cmakeConfigure by tasks.registering(Exec::class) {
     group = "native"
-    description = "Configure CMake build for nanofilter core"
+    description = "Configure CMake build for tinywindow core"
     workingDir = layout.buildDirectory.dir("cmake-build").get().asFile
     doFirst { workingDir.mkdirs() }
     commandLine("cmake",
@@ -43,7 +43,7 @@ val cmakeConfigure by tasks.registering(Exec::class) {
 
 val cmakeBuild by tasks.registering(Exec::class) {
     group = "native"
-    description = "Build nanofilter native library"
+    description = "Build tinywindow native library"
     dependsOn(cmakeConfigure)
     workingDir = layout.buildDirectory.dir("cmake-build").get().asFile
     commandLine("cmake", "--build", ".", "--parallel")
@@ -71,14 +71,14 @@ val compileJni by tasks.registering(Exec::class) {
     doFirst { nDir.mkdirs() }
 
     val cmakeBuildDir = layout.buildDirectory.dir("cmake-build").get().asFile.absolutePath
-    // Static-link libnanofilter.a so the JNI lib is self-contained (no runtime dependency)
+    // Static-link libtinywindow.a so the JNI lib is self-contained (no runtime dependency)
     val osInclude = if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "darwin" else "linux"
     commandLine("cc", "-shared", "-fPIC", "-O2", "-pthread",
         "-I", "${coreDir.asFile.absolutePath}/include",
         "-I", "$javaHome/include",
         "-I", "$javaHome/include/$osInclude",
-        jniDir.file("nanofilter_jni.c").asFile.absolutePath,
-        "$cmakeBuildDir/libnanofilter.a",
+        jniDir.file("tinywindow_jni.c").asFile.absolutePath,
+        "$cmakeBuildDir/libtinywindow.a",
         "-lm",
         "-o", "${nDir.absolutePath}/$outputLib"
     )

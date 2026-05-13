@@ -1,4 +1,4 @@
-#include "nanofilter.h"
+#include "tinywindow.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,13 +12,13 @@
 static void test_empty_string(void) {
     /* Empty string with seed 0: MurmurHash3 reference returns all zeros (finalization of 0) */
     uint32_t out0[4] = {0};
-    nf_murmurhash3_x86_128("", 0, 0, out0);
+    tw_murmurhash3_x86_128("", 0, 0, out0);
     printf("  empty string (seed=0): %08x %08x %08x %08x\n",
            out0[0], out0[1], out0[2], out0[3]);
 
     /* With non-zero seed, should produce non-zero hash */
     uint32_t out1[4] = {0};
-    nf_murmurhash3_x86_128("", 0, 42, out1);
+    tw_murmurhash3_x86_128("", 0, 42, out1);
     printf("  empty string (seed=42): %08x %08x %08x %08x\n",
            out1[0], out1[1], out1[2], out1[3]);
     assert(out1[0] != 0 || out1[1] != 0 || out1[2] != 0 || out1[3] != 0);
@@ -29,20 +29,20 @@ static void test_known_vectors(void) {
     /* Test determinism: same input -> same output */
     uint32_t out1[4], out2[4];
 
-    nf_murmurhash3_x86_128("hello", 5, 42, out1);
-    nf_murmurhash3_x86_128("hello", 5, 42, out2);
+    tw_murmurhash3_x86_128("hello", 5, 42, out1);
+    tw_murmurhash3_x86_128("hello", 5, 42, out2);
     assert(memcmp(out1, out2, 16) == 0);
     printf("  PASS: deterministic output\n");
 
     /* Different seeds -> different output */
-    nf_murmurhash3_x86_128("hello", 5, 0, out1);
-    nf_murmurhash3_x86_128("hello", 5, 1, out2);
+    tw_murmurhash3_x86_128("hello", 5, 0, out1);
+    tw_murmurhash3_x86_128("hello", 5, 1, out2);
     assert(memcmp(out1, out2, 16) != 0);
     printf("  PASS: different seeds produce different hashes\n");
 
     /* Different keys -> different output */
-    nf_murmurhash3_x86_128("hello", 5, 0, out1);
-    nf_murmurhash3_x86_128("world", 5, 0, out2);
+    tw_murmurhash3_x86_128("hello", 5, 0, out1);
+    tw_murmurhash3_x86_128("world", 5, 0, out2);
     assert(memcmp(out1, out2, 16) != 0);
     printf("  PASS: different keys produce different hashes\n");
 }
@@ -50,15 +50,15 @@ static void test_known_vectors(void) {
 static void test_hash128_convenience(void) {
     uint64_t h1a, h2a, h1b, h2b;
 
-    nf_hash128("user:abc:campaign:xyz", 0, &h1a, &h2a);
-    nf_hash128("user:abc:campaign:xyz", 0, &h1b, &h2b);
+    tw_hash128("user:abc:campaign:xyz", 0, &h1a, &h2a);
+    tw_hash128("user:abc:campaign:xyz", 0, &h1b, &h2b);
     assert(h1a == h1b && h2a == h2b);
-    printf("  PASS: nf_hash128 deterministic\n");
+    printf("  PASS: tw_hash128 deterministic\n");
 
-    nf_hash128("key_a", 0, &h1a, &h2a);
-    nf_hash128("key_b", 0, &h1b, &h2b);
+    tw_hash128("key_a", 0, &h1a, &h2a);
+    tw_hash128("key_b", 0, &h1b, &h2b);
     assert(h1a != h1b || h2a != h2b);
-    printf("  PASS: nf_hash128 different keys\n");
+    printf("  PASS: tw_hash128 different keys\n");
 }
 
 static void test_distribution(void) {
@@ -71,7 +71,7 @@ static void test_distribution(void) {
         char key[32];
         snprintf(key, sizeof(key), "key_%d", i);
         uint64_t h1, h2;
-        nf_hash128(key, 0, &h1, &h2);
+        tw_hash128(key, 0, &h1, &h2);
         buckets[h1 % NUM_BUCKETS]++;
         (void)h2;
     }
@@ -100,7 +100,7 @@ static void test_various_lengths(void) {
         buf[len] = '\0';
 
         uint32_t out[4];
-        nf_murmurhash3_x86_128(buf, len, 0, out);
+        tw_murmurhash3_x86_128(buf, len, 0, out);
 
         if (len > 1) {
             assert(memcmp(out, prev, 16) != 0);
