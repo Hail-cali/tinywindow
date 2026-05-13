@@ -10,7 +10,11 @@ jobs:
   c-core:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux-amd64
+          - os: macos-latest
+            platform: darwin-aarch64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,11 +36,18 @@ jobs:
           cd core/build
           ./bench_throughput
 
-  kotlin:
-    needs: c-core
+  native-build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux-amd64
+            os_include: linux
+            lib_ext: so
+          - os: macos-latest
+            platform: darwin-aarch64
+            os_include: darwin
+            lib_ext: dylib
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -46,13 +57,80 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Build C core (static)
+        run: |
+          cd core
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+      - name: Compile JNI bridge
+        run: |
+          mkdir -p kotlin/build/natives/${{ matrix.platform }}
+          cc -shared -fPIC -O2 -pthread \
+            -I core/include \
+            -I $JAVA_HOME/include \
+            -I $JAVA_HOME/include/${{ matrix.os_include }} \
+            kotlin/src/main/c/tinywindow_jni.c \
+            core/build/libtinywindow.a \
+            -lm \
+            -o kotlin/build/natives/${{ matrix.platform }}/libtinywindow_jni.${{ matrix.lib_ext }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.platform }}
+          path: kotlin/build/natives/${{ matrix.platform }}/
+
+  kotlin:
+    needs: native-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Download all native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: kotlin/build/natives/
+          pattern: native-*
+          merge-multiple: false
+
+      - name: Reorganize native artifacts
+        run: |
+          cd kotlin/build/natives
+          for dir in native-*/; do
+            platform="${dir#native-}"
+            platform="${platform%/}"
+            if [ -d "$dir" ]; then
+              mkdir -p "$platform"
+              cp -r "$dir"/* "$platform"/
+              rm -rf "$dir"
+            fi
+          done
+          echo "=== Native library layout ==="
+          find . -type f
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build and test Kotlin
         run: |
           cd kotlin
-          ./gradlew test
+          ./gradlew test jar -x cmakeConfigure -x cmakeBuild -x compileJni
+
+      - name: Verify JAR contents
+        run: |
+          echo "=== JAR native library contents ==="
+          jar tf kotlin/build/libs/tinywindow-*.jar | grep native/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tinywindow-jar
+          path: kotlin/build/libs/tinywindow-*.jar
 
   python:
     needs: c-core

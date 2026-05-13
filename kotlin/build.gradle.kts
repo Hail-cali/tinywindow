@@ -19,15 +19,32 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// --- Platform detection ---
+
+val currentOs: String = when {
+    org.gradle.internal.os.OperatingSystem.current().isMacOsX -> "darwin"
+    org.gradle.internal.os.OperatingSystem.current().isWindows -> "windows"
+    else -> "linux"
+}
+
+val currentArch: String = when (System.getProperty("os.arch")) {
+    "amd64", "x86_64" -> "amd64"
+    "aarch64", "arm64" -> "aarch64"
+    else -> System.getProperty("os.arch")
+}
+
+val platformClassifier = "$currentOs-$currentArch"
+
 tasks.test {
     useJUnitPlatform()
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
-    systemProperty("java.library.path", layout.buildDirectory.dir("natives").get().asFile.absolutePath)
+    systemProperty("java.library.path", layout.buildDirectory.dir("natives/$platformClassifier").get().asFile.absolutePath)
 }
 
 // --- Native library build via CMake ---
 
 val nativeDir = layout.buildDirectory.dir("natives")
+val platformNativeDir = layout.buildDirectory.dir("natives/$platformClassifier")
 val coreDir = rootProject.layout.projectDirectory.dir("../core")
 
 val cmakeConfigure by tasks.registering(Exec::class) {
@@ -48,8 +65,7 @@ val cmakeBuild by tasks.registering(Exec::class) {
     workingDir = layout.buildDirectory.dir("cmake-build").get().asFile
     commandLine("cmake", "--build", ".", "--parallel")
     doLast {
-        // Copy built library to natives dir
-        val nDir = nativeDir.get().asFile
+        val nDir = platformNativeDir.get().asFile
         nDir.mkdirs()
         workingDir.listFiles()?.filter {
             it.name.endsWith(".so") || it.name.endsWith(".dylib") || it.name.endsWith(".dll")
@@ -66,13 +82,16 @@ val compileJni by tasks.registering(Exec::class) {
     description = "Compile JNI bridge"
     dependsOn(cmakeBuild)
     val javaHome = System.getProperty("java.home") ?: System.getenv("JAVA_HOME") ?: "/usr/lib/jvm/default"
-    val outputLib = if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "libtinywindow_jni.dylib" else "libtinywindow_jni.so"
-    val nDir = nativeDir.get().asFile
+    val outputLib = when (currentOs) {
+        "darwin" -> "libtinywindow_jni.dylib"
+        "windows" -> "tinywindow_jni.dll"
+        else -> "libtinywindow_jni.so"
+    }
+    val nDir = platformNativeDir.get().asFile
     doFirst { nDir.mkdirs() }
 
     val cmakeBuildDir = layout.buildDirectory.dir("cmake-build").get().asFile.absolutePath
-    // Static-link libtinywindow.a so the JNI lib is self-contained (no runtime dependency)
-    val osInclude = if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "darwin" else "linux"
+    val osInclude = if (currentOs == "darwin") "darwin" else "linux"
     commandLine("cc", "-shared", "-fPIC", "-O2", "-pthread",
         "-I", "${coreDir.asFile.absolutePath}/include",
         "-I", "$javaHome/include",
@@ -88,7 +107,7 @@ tasks.named("compileKotlin") {
     dependsOn(compileJni)
 }
 
-// Include native libs in JAR
+// Include native libs in JAR (preserves native/{os}-{arch}/ structure)
 tasks.named<Jar>("jar") {
     from(nativeDir) {
         into("native")
