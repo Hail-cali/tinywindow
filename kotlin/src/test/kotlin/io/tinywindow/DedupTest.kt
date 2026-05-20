@@ -69,6 +69,33 @@ class DedupTest {
     }
 
     @Test
+    fun `composite key dedup with user campaign adId`() {
+        TinyWindow.dedup(
+            expectedItems = 100_000,
+            ttl = 1.hours,
+            errorRate = 0.001
+        ).use { dedup ->
+            assertFalse(dedup.isDuplicate("user:abc", "campaign:xyz", "ad:123"))
+            assertTrue(dedup.isDuplicate("user:abc", "campaign:xyz", "ad:123"))
+            // different adId is independent
+            assertFalse(dedup.isDuplicate("user:abc", "campaign:xyz", "ad:456"))
+        }
+    }
+
+    @Test
+    fun `composite key avoids separator collision`() {
+        TinyWindow.dedup(
+            expectedItems = 100_000,
+            ttl = 1.hours,
+            errorRate = 0.001
+        ).use { dedup ->
+            dedup.record("a:b", "c")
+            // "a" + "b:c" must NOT collide with "a:b" + "c"
+            assertFalse(dedup.mightContain("a", "b:c"))
+        }
+    }
+
+    @Test
     fun `use after close throws`() {
         val dedup = TinyWindow.dedup(
             expectedItems = 100_000,

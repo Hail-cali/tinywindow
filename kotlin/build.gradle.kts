@@ -4,9 +4,10 @@ plugins {
     kotlin("jvm") version "1.9.24"
     `java-library`
     `maven-publish`
+    signing
 }
 
-group = "io.tinywindow"
+group = "io.github.hail-cali"
 version = "0.1.0-SNAPSHOT"
 
 repositories {
@@ -118,6 +119,11 @@ kotlin {
     jvmToolchain(17)
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
@@ -132,7 +138,36 @@ publishing {
                         url.set("https://www.apache.org/licenses/LICENSE-2.0")
                     }
                 }
+                developers {
+                    developer {
+                        id.set("hail-cali")
+                        name.set("Hail Yong")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:git://github.com/Hail-cali/tinywindow.git")
+                    developerConnection.set("scm:git:ssh://github.com:Hail-cali/tinywindow.git")
+                    url.set("https://github.com/Hail-cali/tinywindow")
+                }
             }
         }
     }
+
+    repositories {
+        maven {
+            name = "OSSRH"
+            val releasesUrl = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+            val snapshotsUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+            url = if (version.toString().endsWith("SNAPSHOT")) snapshotsUrl else releasesUrl
+
+            credentials {
+                username = findProperty("ossrhUsername") as String? ?: ""
+                password = findProperty("ossrhPassword") as String? ?: ""
+            }
+        }
+    }
+}
+
+signing {
+    sign(publishing.publications["maven"])
 }

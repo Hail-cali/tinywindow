@@ -9,7 +9,6 @@ class Dedup internal constructor(
 ) : AutoCloseable {
 
     private val handle: Long
-    @Volatile private var closed = false
 
     init {
         val ttlMs = ttl.inWholeMilliseconds
@@ -21,29 +20,35 @@ class Dedup internal constructor(
         check(handle != 0L) { "Failed to allocate Sliding Bloom Filter" }
     }
 
-    fun mightContain(key: String): Boolean {
-        check(!closed) { "Dedup is closed" }
-        return Native.sbfMightContain(handle, key, ttl.inWholeMilliseconds, System.currentTimeMillis())
+    private val guard = handle.let { ptr ->
+        NativeGuard("Dedup") { Native.sbfDestroy(ptr) }
     }
 
-    fun record(key: String) {
-        check(!closed) { "Dedup is closed" }
+    fun mightContain(vararg keys: String): Boolean = guard.withRef {
+        val key = compositeKey(keys)
+        Native.sbfMightContain(handle, key, ttl.inWholeMilliseconds, System.currentTimeMillis())
+    }
+
+    fun record(vararg keys: String) = guard.withRef {
+        val key = compositeKey(keys)
         Native.sbfInsert(handle, key, System.currentTimeMillis())
     }
 
-    fun isDuplicate(key: String): Boolean {
-        check(!closed) { "Dedup is closed" }
+    fun isDuplicate(vararg keys: String): Boolean = guard.withRef {
+        val key = compositeKey(keys)
         val now = System.currentTimeMillis()
         val seen = Native.sbfMightContain(handle, key, ttl.inWholeMilliseconds, now)
         Native.sbfInsert(handle, key, now)
-        return seen
+        seen
     }
 
-    fun memoryUsage(): Long = Native.sbfMemoryUsage(handle)
+    fun memoryUsage(): Long = guard.withRef {
+        Native.sbfMemoryUsage(handle)
+    }
 
-    override fun close() {
-        if (closed) return
-        closed = true
-        Native.sbfDestroy(handle)
+    override fun close() = guard.close()
+
+    private fun compositeKey(keys: Array<out String>): String {
+        return keys.joinToString("") { "${it.length}:$it" }
     }
 }

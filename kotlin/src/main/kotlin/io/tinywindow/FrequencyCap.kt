@@ -15,57 +15,66 @@ class FrequencyCap internal constructor(
     )
 
     private val handles: List<WindowHandle>
-    @Volatile private var closed = false
 
     init {
         val cmsParams = CmsParams.compute(expectedPairs, errorRate)
-        handles = windows.map { window ->
-            val windowMs = window.inWholeMilliseconds
-            val slotConfig = SlotConfig.forWindow(windowMs)
-            val handle = Native.tcmsCreate(
-                cmsParams.depth, cmsParams.width,
-                slotConfig.numSlots, slotConfig.slotDurationMs
-            )
-            check(handle != 0L) { "Failed to allocate Timing CMS for window $window" }
-            WindowHandle(window, handle, slotConfig.slotDurationMs)
+        val allocated = mutableListOf<Long>()
+        try {
+            handles = windows.map { window ->
+                val windowMs = window.inWholeMilliseconds
+                val slotConfig = SlotConfig.forWindow(windowMs)
+                val handle = Native.tcmsCreate(
+                    cmsParams.depth, cmsParams.width,
+                    slotConfig.numSlots, slotConfig.slotDurationMs
+                )
+                check(handle != 0L) { "Failed to allocate Timing CMS for window $window" }
+                allocated += handle
+                WindowHandle(window, handle, slotConfig.slotDurationMs)
+            }
+        } catch (e: Exception) {
+            allocated.forEach(Native::tcmsDestroy)
+            throw e
         }
     }
 
-    fun record(vararg keys: String) {
-        check(!closed) { "FrequencyCap is closed" }
-        val compositeKey = keys.joinToString(":")
+    private val guard = handles.map { it.handle }.let { ptrs ->
+        NativeGuard("FrequencyCap") { ptrs.forEach(Native::tcmsDestroy) }
+    }
+
+    fun record(vararg keys: String) = guard.withRef {
+        val compositeKey = compositeKey(keys)
         val now = System.currentTimeMillis()
         for (wh in handles) {
             Native.tcmsRecord(wh.handle, compositeKey, now)
         }
     }
 
-    fun count(window: Duration, vararg keys: String): Long {
-        check(!closed) { "FrequencyCap is closed" }
-        val compositeKey = keys.joinToString(":")
+    fun count(window: Duration, vararg keys: String): Long = guard.withRef {
+        val compositeKey = compositeKey(keys)
         val now = System.currentTimeMillis()
         val wh = handles.find { it.duration == window }
             ?: throw IllegalArgumentException("Window $window not configured")
-        return Native.tcmsCount(wh.handle, compositeKey, window.inWholeMilliseconds, now)
+        Native.tcmsCount(wh.handle, compositeKey, window.inWholeMilliseconds, now)
     }
 
-    fun countAll(vararg keys: String): Map<Duration, Long> {
-        check(!closed) { "FrequencyCap is closed" }
-        val compositeKey = keys.joinToString(":")
+    fun countAll(vararg keys: String): Map<Duration, Long> = guard.withRef {
+        val compositeKey = compositeKey(keys)
         val now = System.currentTimeMillis()
-        return handles.associate { wh ->
+        handles.associate { wh ->
             wh.duration to Native.tcmsCount(
                 wh.handle, compositeKey, wh.duration.inWholeMilliseconds, now
             )
         }
     }
 
-    fun memoryUsage(): Long = handles.sumOf { Native.tcmsMemoryUsage(it.handle) }
+    fun memoryUsage(): Long = guard.withRef {
+        handles.sumOf { Native.tcmsMemoryUsage(it.handle) }
+    }
 
-    override fun close() {
-        if (closed) return
-        closed = true
-        handles.forEach { Native.tcmsDestroy(it.handle) }
+    override fun close() = guard.close()
+
+    private fun compositeKey(keys: Array<out String>): String {
+        return keys.joinToString("") { "${it.length}:$it" }
     }
 }
 
@@ -75,7 +84,7 @@ internal data class CmsParams(val depth: Int, val width: Int) {
             val d = Math.ceil(Math.log(1.0 / errorRate)).toInt().coerceIn(3, 10)
             val wTheory = (Math.E / errorRate).toLong()
             val wPractical = expectedItems / 10
-            val w = maxOf(wTheory, wPractical, 1000L).toInt()
+            val w = maxOf(wTheory, wPractical, 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             return CmsParams(depth = d, width = w)
         }
     }
